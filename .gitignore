@@ -2,3 +2,6 @@
 .env
 bin/
 obj/
+
+.work/
+build/
