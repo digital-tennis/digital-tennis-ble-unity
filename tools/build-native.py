@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build native helpers without starting Bluetooth or changing OS permissions."""
-import argparse,pathlib,subprocess,shutil
+import argparse,pathlib,subprocess,shutil,json,hashlib
 p=argparse.ArgumentParser();p.add_argument('--platform',choices=['mac','windows'],required=True);p.add_argument('--out',type=pathlib.Path,required=True);a=p.parse_args();root=pathlib.Path(__file__).resolve().parents[1];out=a.out.resolve();out.mkdir(parents=True,exist_ok=True)
 if a.platform=='mac':
     products=[]
@@ -13,4 +13,19 @@ if a.platform=='mac':
 else:
     subprocess.run(['dotnet','publish',str(root/'Native/windows/BleHelper.csproj'),'-c','Release','-o',str(out),'-p:PublishSingleFile=true','-p:IncludeNativeLibrariesForSelfExtract=true','--nologo','-v','quiet'],check=True)
     for symbols in out.glob('*.pdb'):symbols.unlink()
+    # Self-contained delivery includes the Microsoft runtime. Preserve the
+    # notices supplied by every restored package, not only our helper source.
+    assets=json.loads((root/'Native/windows/obj/project.assets.json').read_text())
+    inventory=[]
+    for name,library in assets['libraries'].items():
+        if library.get('type')!='package':continue
+        package=next((pathlib.Path(folder)/library['path'] for folder in assets['packageFolders'] if (pathlib.Path(folder)/library['path']).is_dir()),None)
+        if package is None:continue
+        notices=[path for path in package.iterdir() if path.is_file() and ('license' in path.name.lower() or 'notice' in path.name.lower())]
+        destination=out/'Licenses'/name.replace('/','-');destination.mkdir(parents=True,exist_ok=True)
+        for notice in notices:shutil.copyfile(notice,destination/notice.name)
+        inventory.append({'package':name,'notices':[path.name for path in notices]})
+    (out/'Licenses/packages.json').write_text(json.dumps(inventory,indent=2)+'\n')
+sources={str(path.relative_to(root)):hashlib.sha256(path.read_bytes()).hexdigest() for path in (root/'Native').rglob('*') if path.is_file() and not any(part in ('bin','obj') for part in path.relative_to(root).parts) and path.suffix in ('.cs','.csproj','.swift','.plist')}
+(out/'native-build.json').write_text(json.dumps({'platform':a.platform,'sourceHashes':sources,'sdk':subprocess.check_output(['dotnet','--version'],text=True).strip() if a.platform=='windows' else subprocess.check_output(['swiftc','--version'],text=True).strip()},indent=2)+'\n')
 print(out)
