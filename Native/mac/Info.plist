@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>com.digitaltennis.ble-helper</string>
+<key>CFBundleName</key><string>Digital Tennis Controller</string>
+<key>CFBundleExecutable</key><string>digital-tennis-ble</string>
+<key>NSBluetoothAlwaysUsageDescription</key><string>선택한 Digital Tennis 라켓 컨트롤러를 찾아 연결하고 스윙 입력을 받습니다.</string>
+</dict></plist>
