@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using System.Globalization;
 using DigitalTennis.Protocol;
 
 namespace DigitalTennis.Controller
@@ -58,7 +60,7 @@ namespace DigitalTennis.Controller
                 if(e.Operation!=operation){Rejected++;continue;}
                 switch(e.Kind)
                 {
-                    case "device":if(State==BleLinkState.Scanning&&!string.IsNullOrEmpty(e.Id)&&e.Id.Length<=256&&!devices.Exists(x=>x.Id==e.Id)&&devices.Count<64)devices.Add(new BleDevice(e.Id,string.IsNullOrWhiteSpace(e.Name)?"Digital Tennis Racket":e.Name.Substring(0,Math.Min(e.Name.Length,80))));break;
+                    case "device":if(State==BleLinkState.Scanning&&!string.IsNullOrEmpty(e.Id)&&e.Id.Length<=256&&!devices.Exists(x=>x.Id==e.Id)&&devices.Count<64)devices.Add(new BleDevice(e.Id,string.IsNullOrWhiteSpace(e.Name)?"Digital Tennis Racket":CleanName(e.Name)));break;
                     case "pairing":if(State==BleLinkState.Connecting) {State=BleLinkState.Pairing;Status="운영체제의 페어링 승인을 확인해 주세요.";}break;
                     case "connected":if((State==BleLinkState.Connecting||State==BleLinkState.Pairing)&&e.Id==ConnectedDeviceId){State=BleLinkState.Connected;ConnectionEpoch=operation;hasSequence=false;seen.Clear();order.Clear();Status="연결 완료 · 라켓을 정지한 뒤 보정하세요.";}break;
                     case "packet":ProcessPacket(e,now);break;
@@ -74,7 +76,7 @@ namespace DigitalTennis.Controller
         {
             if(State!=BleLinkState.Connected||!Finite(e.ReceivedAt)||e.ReceivedAt<0||e.ReceivedAt>now+.02||now-e.ReceivedAt>.2||PacketCodec.Decode(e.Packet,out var p)!=DecodeError.None){Rejected++;return;}
             if(hasSequence&&!PacketCodec.Newer(p.Sequence,lastSequence)){Rejected++;return;}lastSequence=p.Sequence;hasSequence=true;
-            if(p.Type==PacketType.Ack){if(CalibrationPending&&p.EventId==commandId&&e.ReceivedAt<=calibrationDeadline){CalibrationPending=false;Calibrated=p.Kind==0&&(p.Flags&3)==3;Status=Calibrated?"보정 완료 · 서브·스윙·스킬을 테스트하세요.":"보정하지 못했습니다. 라켓을 정지하고 다시 보정하세요.";}return;}
+            if(p.Type==PacketType.Ack){if(CalibrationPending&&p.EventId==commandId&&e.ReceivedAt<=calibrationDeadline){if(p.Kind==1){Status="센서 보정을 진행 중입니다. 라켓을 움직이지 마세요.";return;}CalibrationPending=false;Calibrated=p.Kind==0&&(p.Flags&3)==3;Status=Calibrated?"보정 완료 · 서브·스윙·스킬을 테스트하세요.":"보정하지 못했습니다. 라켓을 정지하고 다시 보정하세요.";}return;}
             if(p.Type==PacketType.Status){if((p.Flags&3)!=3){Calibrated=false;ClearInput();Status="센서 준비·보정 상태를 확인해 주세요.";}return;}
             // A status flag alone cannot complete this connection's calibration command.
             if(p.Type!=PacketType.Swing||!p.MotionReady||!Calibrated||CalibrationPending){Rejected++;return;}
@@ -86,6 +88,10 @@ namespace DigitalTennis.Controller
         // Drops motion only. It must not cancel pairing/discovery or rewrite time.
         public void ClearInput(){intents.Clear();lock(ingress){var keep=new Queue<BleTransportEvent>();while(ingress.Count>0){var e=ingress.Dequeue();if(e.Kind!="packet"||(PacketCodec.Decode(e.Packet,out var p)==DecodeError.None&&p.Type!=PacketType.Swing))keep.Enqueue(e);}while(keep.Count>0)ingress.Enqueue(keep.Dequeue());}}
         public void Dispose(){if(disposed)return;Reset();lock(ingress)disposed=true;transport.Received-=Receive;transport.Dispose();}
+        private static string CleanName(string name)
+        {
+            var result=new StringBuilder();foreach(char c in name){if(result.Length>=80)break;if(char.GetUnicodeCategory(c)==UnicodeCategory.Format)continue;result.Append(char.IsControl(c)?' ':c=='<'?'‹':c=='>'?'›':c);}return result.ToString();
+        }
         private static bool Finite(double v)=>!double.IsNaN(v)&&!double.IsInfinity(v);
         private static float Clamp(float x)=>Math.Max(-1,Math.Min(1,x));
     }

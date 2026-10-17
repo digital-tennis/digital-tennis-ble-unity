@@ -27,6 +27,6 @@ python3 tools/build-native.py --platform windows --out /absolute/native/windows
 
 Mac helper는arm64/x86_64 universal 바이너리이고 사용 목적 plist를 포함한다. Windows helper는 .NET self-contained x64 배포다. 게임 빌드 후처리가 해당 플랫폼 출력만 `StreamingAssets/ControllerNative/`에 넣는다. 네이티브 바이너리는 Git에 커밋하지 않는다. CLI 검사는 실제 전파 검색/페어링을 시작하지 않는다.
 
-가짜 transport는 `tests/`에만 있고 게임의 개발 E2E는 명시적 검증 옵션으로만 주입한다. 현재 검증은SDK29개·Swift/macOS universal 컴파일·Windows 교차 컴파일이다. **실제 외장 IMU·라디오·OS 동의 팝업·실물 WindowsPC 검증은 유예**다. 검증된 컴파일을 실물 연결 성공으로 표시하지 않는다. 원래12일·3명·NU40-DK+별도 외장IMU 조건을 유지한다.
+가짜 transport는 `tests/`에만 있고 게임의 개발 E2E는 명시적 검증 옵션으로만 주입한다. 현재 검증은SDK31개·Swift/macOS universal 컴파일·Windows 교차 컴파일이다. **실제 외장 IMU·라디오·OS 동의 팝업·실물 WindowsPC 검증은 유예**다. 검증된 컴파일을 실물 연결 성공으로 표시하지 않는다. 원래12일·3명·NU40-DK+별도 외장IMU 조건을 유지한다.
 
 기술 기준: [Apple CBCentralManager](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager), [Microsoft Bluetooth GATT Client](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/gatt-client). SDK 소비자는 지원 OS 권한과 선택한 기기만 사용한다.
