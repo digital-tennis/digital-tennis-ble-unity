@@ -35,6 +35,9 @@ else:
     for prefix in ('Microsoft.NETCore.App.Runtime.','Microsoft.WindowsDesktop.App.Runtime.'):
         assert any(item['package'].startswith(prefix) and any('license' in name.lower() for name in item['notices']) for item in inventory), 'Missing redistributed runtime license: '+prefix
     (out/'Licenses/packages.json').write_text(json.dumps(inventory,indent=2)+'\n')
+# Apache license/NOTICE travel with the standalone helper on both platforms.
+owned=out/'Licenses'/'DigitalTennis.Controller';owned.mkdir(parents=True,exist_ok=True)
+for name in ('LICENSE','NOTICE','THIRD_PARTY_NOTICES.md'):shutil.copyfile(root/name,owned/name)
 sources={str(path.relative_to(root)):hashlib.sha256(path.read_bytes()).hexdigest() for path in (root/'Native').rglob('*') if path.is_file() and not any(part in ('bin','obj') for part in path.relative_to(root).parts) and path.suffix in ('.cs','.csproj','.swift','.plist')}
 (out/'native-build.json').write_text(json.dumps({'platform':a.platform,'sourceHashes':sources,'sdk':subprocess.check_output(['dotnet','--version'],text=True).strip() if a.platform=='windows' else subprocess.check_output(['swiftc','--version'],text=True).strip()},indent=2)+'\n')
 print(out)
