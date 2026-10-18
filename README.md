@@ -4,9 +4,9 @@ BLE 검색·연결·재연결, 메인 스레드 입력 전달, 가상 컨트롤�
 
 ## 현재 상태
 
-Unity 비의존 C# SDK와 Mac CoreBluetooth/Windows GATT 네이티브 전송을 구현했습니다. [계층·검증·배포](docs/architecture.md)를 확인하세요. `dotnet run --project tests/Checks.csproj -c Release -p:ProtocolRoot=/absolute/protocol`로31개 검사를 실행합니다. 실제 연결과 보정 ACK, 동작 테스트는 서로 다른 상태입니다.
+Unity 비의존 C# SDK와 Mac CoreBluetooth/Windows GATT 네이티브 전송을 구현했습니다. [계층·검증·배포](docs/architecture.md)를 확인하세요. `dotnet run --project tests/Checks.csproj -c Release -p:ProtocolRoot=/absolute/protocol`로39개 검사를 실행합니다. 실제 연결과 보정 ACK, 동작 테스트는 서로 다른 상태입니다.
 
-정상 사용자 경로는 가짜 장치를 만들지 않습니다. Native helper는 소스에서 별도로 빌드하며 Git에 바이너리를 넣지 않습니다. 컴파일·모의 전송 검사 통과와 실제 OS페어링/라디오/IMU 성공은 구분합니다. 실물 검증은 유예 상태입니다.
+정상 사용자 경로는 가짜 장치를 만들지 않습니다. Native helper는 소스에서 별도로 빌드하며 Git에 바이너리를 넣지 않습니다. 컴파일·모의 전송 검사 통과와 실제 OS페어링/라디오/IMU 성공은 구분합니다. 외장 IMU 보정·인식 정확도와 Windows 실기는 별도 검증합니다. 센서 없는 연결·송수신 확인은 `ProbeLink`와 `tools/probe-link.py`로 진행할 수 있습니다.
 
 ## 개발할 기능과 제출 기준
 
@@ -21,7 +21,7 @@ Unity 비의존 C# SDK와 Mac CoreBluetooth/Windows GATT 네이티브 전송을 
 
 초기 담당 역할은 C / A 검토입니다. 실제 IMU·배선·펌웨어 SDK·Unity·Windows·런타임 버전은 D1에 [환경표](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/project/overview.md)와 결정 기록에 남깁니다.
 
-예상 폴더는 `Runtime/ · Tests/ · Samples~/ · WindowsAdapter/`입니다. 아직 존재하지 않는 폴더와 실행 명령을 구현 완료로 해석하지 않습니다. 채택 도구와 실제 구현에 맞게 갱신합니다.
+현재 구조는 `Runtime/ · Native/mac/ · Native/windows/ · tests/ · tools/ · docs/`입니다. SDK와 플랫폼 helper를 분리하며 게임은 SDK의 연결 상태·통신 확인·입력 의도만 사용합니다.
 
 ## 검증과 협업
 

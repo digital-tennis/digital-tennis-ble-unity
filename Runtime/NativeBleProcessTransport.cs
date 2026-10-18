@@ -57,7 +57,7 @@ namespace DigitalTennis.Controller
         {
             if(disposed||operation!=activeOperation||worker==null||packet==null||packet.Length!=20)return;
             try{worker.StandardInput.WriteLine(BitConverter.ToString(packet).Replace("-",""));worker.StandardInput.Flush();}
-            catch(Exception e) when(e is IOException||e is InvalidOperationException||e is ObjectDisposedException){Emit(operation,"error","보정 명령을 보내지 못했습니다.");}
+            catch(Exception e) when(e is IOException||e is InvalidOperationException||e is ObjectDisposedException){Emit(operation,"error","기기 명령을 보내지 못했습니다.");}
         }
         public void Disconnect()
         {

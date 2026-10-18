@@ -26,6 +26,13 @@ static class Program
   client.Calibrate(8);PacketCodec.Decode(radio.Written,out command);radio.Event("packet",8.1,packet:Packet(100,command.EventId,0,3,PacketType.Ack));client.Tick(8.1);Check(client.Calibrated,"new connection can calibrate");radio.Event("packet",8.2,packet:Packet(101,204));client.ClearInput();client.Tick(8.2);Check(!client.TryRead(out _),"queued motion dropped");
   radio.Event("disconnected");client.Tick(8.3);Check(client.ConnectionEpoch==0&&!client.Calibrated,"disconnect invalidates state");
   client.Scan();radio.Event("device",id:"racket");client.Tick(10);client.Tick(14);Check(client.State==BleLinkState.Disconnected&&client.Devices.Count==1,"bounded discovery exposes connectable results");
+  client.Scan();radio.Event("device",id:"racket");client.Tick(20);client.Connect("racket");radio.Event("connected",id:"racket");client.Tick(20);
+  Check(client.ProbeLink(20),"sensorless link probe allowed");PacketCodec.Decode(radio.Written,out var probe);Check(probe.Type==PacketType.LinkProbe&&!client.Calibrated,"probe never calibrates");
+  radio.Event("packet",20.01,packet:Packet(1,(ushort)(probe.EventId+1),0,0,PacketType.LinkReply));client.Tick(20.01);Check(client.LinkProbePending&&!client.LinkProbePassed,"wrong probe nonce rejected");
+  radio.Event("packet",20.02,packet:Packet(2,probe.EventId,0,0,PacketType.LinkReply));client.Tick(20.02);Check(client.LinkProbePassed&&!client.LinkProbePending&&!client.Calibrated&&!client.TryRead(out _)&&client.LinkRoundTripMs>19,"sensorless RX/TX proven independently of motion");
+  Check(client.ProbeLink(21),"retest resets previous success");client.Tick(23);Check(!client.LinkProbePending&&!client.LinkProbePassed,"write without response times out");
+  radio.Event("packet",23.01,packet:Packet(3,probe.EventId,0,3,PacketType.LinkReply));client.Tick(23.01);Check(!client.LinkProbePassed&&!client.Calibrated,"late response cannot revive test or calibration");
+  client.ProbeLink(24);client.Disconnect();Check(!client.LinkProbePending&&!client.LinkProbePassed,"disconnect discards probe result");
   using var missing=new NativeBleProcessTransport("/nonexistent/digital-tennis-ble",()=>9);Check(!missing.Available,"missing native helper honest");
   Console.WriteLine($"ALL {checks} CONTROLLER CHECKS PASSED");
  }

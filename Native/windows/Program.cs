@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -15,6 +16,7 @@ internal sealed class BleWindow:Form
 {
     static readonly Guid Service=new("6d7c1000-9d40-4cb7-a381-5e908be0a001"),Tx=new("6d7c1001-9d40-4cb7-a381-5e908be0a001"),Rx=new("6d7c1002-9d40-4cb7-a381-5e908be0a001");
     readonly string[] args;BluetoothLEAdvertisementWatcher? watcher;BluetoothLEDevice? device;GattDeviceService? service;GattSession? session;GattCharacteristic? command;
+    readonly Queue<string> writes=new();bool writing;
     static void Emit(object value){Console.WriteLine(JsonSerializer.Serialize(value));Console.Out.Flush();}
     public BleWindow(string[] args){this.args=args;Opacity=0;ShowInTaskbar=false;Width=1;Height=1;Shown+=async(_,_)=>{Hide();await Start();};FormClosed+=(_,_)=>{watcher?.Stop();session?.Dispose();service?.Dispose();device?.Dispose();};}
     async Task Start()
@@ -43,15 +45,22 @@ internal sealed class BleWindow:Form
                 device.ConnectionStatusChanged+=(_,_)=>{if(device.ConnectionStatus==BluetoothConnectionStatus.Disconnected)Emit(new{kind="disconnected"});};Emit(new{kind="connected",id=args[1]});
             }
             else throw new InvalidDataException();
-            _=Task.Run(()=>{string? line;while((line=Console.ReadLine())!=null){string copy=line;BeginInvoke((Action)(async()=>await Write(copy)));}BeginInvoke((Action)(()=>Close()));});
+            _=Task.Run(()=>{string? line;while((line=Console.ReadLine())!=null){string copy=line;BeginInvoke((Action)(()=>QueueWrite(copy)));}BeginInvoke((Action)(()=>Close()));});
         }
         catch(Exception){Emit(new{kind="error",status="Bluetooth 연결·서비스·페어링을 확인하지 못했습니다."});Close();}
+    }
+    async void QueueWrite(string hex)
+    {
+        if(hex.Length!=40||writes.Count>=16)return;
+        writes.Enqueue(hex);if(writing)return;writing=true;
+        try{while(writes.Count>0){await Write(writes.Dequeue());}}
+        finally{writing=false;}
     }
     async Task Write(string hex)
     {
         if(command==null||hex.Length!=40)return;
         try{using var writer=new DataWriter();writer.WriteBytes(Convert.FromHexString(hex));var result=await command.WriteValueWithResultAsync(writer.DetachBuffer(),GattWriteOption.WriteWithResponse);if(result.Status!=GattCommunicationStatus.Success)throw new IOException();}
-        catch(Exception){Emit(new{kind="error",status="보정 명령을 보내지 못했습니다."});}
+        catch(Exception){Emit(new{kind="error",status="기기 명령을 보내지 못했습니다."});}
     }
     [STAThread] static void Main(string[] args){Application.EnableVisualStyles();Application.Run(new BleWindow(args));}
 }

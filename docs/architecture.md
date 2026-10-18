@@ -1,6 +1,6 @@
 # BLE SDK와 플랫폼 경계
 
-`Runtime/`은 UnityEngine에 의존하지 않는 netstandard2.1이다. 게임은 플랫폼 구현을 직접 참조하지 않고 `BleControllerClient`의 상태·기기·정규화 의도만 읽는다. 프로토콜 PR1의 커밋 `5163cd3073be696c0f8da9ab21f2d85f7e160575`을 고정해 사용한다.
+`Runtime/`은 UnityEngine에 의존하지 않는 netstandard2.1이다. 게임은 플랫폼 구현을 직접 참조하지 않고 `BleControllerClient`의 상태·기기·정규화 의도만 읽는다. 프로토콜 PR1의 커밋 `d9a36826afbafa27a0e276cc53e44c904d05be53` (현재 검토 브랜치 커밋; 스쿼시 병합 후 최종 SHA 갱신)을 고정해 사용한다.
 
 ```text
 Native/mac(CoreBluetooth) 또는 Native/windows(Windows GATT)
@@ -30,3 +30,16 @@ Mac helper는arm64/x86_64 universal 바이너리이고 사용 목적 plist를 �
 가짜 transport는 `tests/`에만 있고 게임의 개발 E2E는 명시적 검증 옵션으로만 주입한다. 현재 검증은SDK31개·Swift/macOS universal 컴파일·Windows 교차 컴파일이다. **실제 외장 IMU·라디오·OS 동의 팝업·실물 WindowsPC 검증은 유예**다. 검증된 컴파일을 실물 연결 성공으로 표시하지 않는다. 원래12일·3명·NU40-DK+별도 외장IMU 조건을 유지한다.
 
 기술 기준: [Apple CBCentralManager](https://developer.apple.com/documentation/corebluetooth/cbcentralmanager), [Microsoft Bluetooth GATT Client](https://learn.microsoft.com/en-us/windows/apps/develop/devices-sensors/gatt-client). SDK 소비자는 지원 OS 권한과 선택한 기기만 사용한다.
+
+## 센서 없는 통신 확인
+
+`ProbeLink(now)`는 v2 LINK_PROBE를 보내고 현재 연결/nonce의 LINK_REPLY를2초 동안 기다린다. Write-with-response 성공, Notify 구독, 실제 앱 응답은 독립 단계다. 이 확인은 보정 상태를 바꾸거나 라켓 입력/스킬/설정 저장을 만들지 않는다. 잘못된 nonce·늦은 응답·끊김은 성공을 무효화한다. 게임은 연결 상세에서 이 상태를 보여주며 외장 IMU가 없어도 링크 시험을 할 수 있다.
+
+사용자가 제공한 NU-54 제품의 `p01-device-firmware/app/src/ble_links.c`와 `p05-operations-backoffice/internal/ble/central.go`, 참조 커밋 `ee12b7519336ed276060b83c69f4f863f557443a`의 서비스 발견·구독 확인·순차 Write-with-response·연결 수명 패턴을 참고했다. 테니스 서비스/패킷으로 구현하며 참조 제품의 결제/프로비저닝 기능은 포함하지 않는다. Mac/Windows helper의 명령 쓰기는 최대16개 큐에서 응답을 기다려 직렬화한다.
+
+```sh
+python3 tools/probe-link.py --helper .work/native/mac/digital-tennis-ble --scan --out .work/scan.json
+python3 tools/probe-link.py --helper .work/native/mac/digital-tennis-ble --device '선택한 ID' --out .work/link.json
+```
+
+이 도구는 명시적으로 실행할 때만 Bluetooth를 사용한다. 참조 NU-54의 다른 UUID/애플리케이션 프로토콜은 게임 라켓과 자동 호환되지 않는다. 실제 참고 보드에서의 연결/응답 결과와 테니스 20바이트 패킷의 모의 전파 검증은 별도 증거로 기록한다.

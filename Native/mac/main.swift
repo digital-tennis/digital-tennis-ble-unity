@@ -10,6 +10,7 @@ func emit(_ fields:[String:String]) {
 }
 final class RacketCentral:NSObject,CBCentralManagerDelegate,CBPeripheralDelegate {
     var central:CBCentralManager!;var peripheral:CBPeripheral?;var command:CBCharacteristic?;var notify:CBCharacteristic?
+    var writes=[Data]();var writing=false
     let mode:String;let deviceId:String?
     init(mode:String,id:String?){self.mode=mode;self.deviceId=id;super.init();central=CBCentralManager(delegate:self,queue:.main)}
     func centralManagerDidUpdateState(_ central:CBCentralManager){
@@ -36,8 +37,18 @@ final class RacketCentral:NSObject,CBCentralManagerDelegate,CBPeripheralDelegate
     }
     func peripheral(_ peripheral:CBPeripheral,didUpdateNotificationStateFor characteristic:CBCharacteristic,error:Error?){guard error == nil,characteristic.uuid == tx,characteristic.isNotifying else{emit(["kind":"error","status":"페어링 또는 알림 구독이 완료되지 않았습니다."]);return};emit(["kind":"connected","id":peripheral.identifier.uuidString])}
     func peripheral(_ peripheral:CBPeripheral,didUpdateValueFor characteristic:CBCharacteristic,error:Error?){guard error == nil,characteristic.uuid == tx,let value=characteristic.value,value.count == 20 else{return};emit(["kind":"packet","hex":value.map{String(format:"%02x",$0)}.joined()])}
-    func peripheral(_ peripheral:CBPeripheral,didWriteValueFor characteristic:CBCharacteristic,error:Error?){if error != nil{emit(["kind":"error","status":"보정 명령을 전달하지 못했습니다."])}}
-    func write(_ hex:String){guard hex.count == 40,let peripheral=peripheral,let command=command else{return};var bytes=[UInt8]();var index=hex.startIndex;while index<hex.endIndex{let next=hex.index(index,offsetBy:2);guard let b=UInt8(hex[index..<next],radix:16) else{return};bytes.append(b);index=next};peripheral.writeValue(Data(bytes),for:command,type:.withResponse)}
+    func peripheral(_ peripheral:CBPeripheral,didWriteValueFor characteristic:CBCharacteristic,error:Error?){
+        guard characteristic.uuid == rx,writing else{return}
+        writing=false
+        guard error == nil else{writes.removeAll();emit(["kind":"error","status":"기기 명령을 전달하지 못했습니다."]);return}
+        if !writes.isEmpty {writes.removeFirst()};sendNext()
+    }
+    func sendNext(){
+        guard !writing,let value=writes.first,let peripheral=peripheral,peripheral.state == .connected,let command=command else{return}
+        guard peripheral.maximumWriteValueLength(for:.withResponse)>=value.count else{writes.removeAll();emit(["kind":"error","status":"기기의 메시지 크기를 지원하지 않습니다."]);return}
+        writing=true;peripheral.writeValue(value,for:command,type:.withResponse)
+    }
+    func write(_ hex:String){guard hex.count == 40,writes.count<16 else{return};var bytes=[UInt8]();var index=hex.startIndex;while index<hex.endIndex{let next=hex.index(index,offsetBy:2);guard let b=UInt8(hex[index..<next],radix:16) else{return};bytes.append(b);index=next};writes.append(Data(bytes));sendNext()}
 }
 let args=CommandLine.arguments
 guard args.count>=2, args[1] == "scan" || args[1] == "connect" else{emit(["kind":"error","status":"Invalid helper invocation"]);exit(2)}
