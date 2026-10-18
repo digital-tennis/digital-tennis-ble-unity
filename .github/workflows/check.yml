@@ -1,0 +1,22 @@
+name: Controller SDK and native compile
+on: [push, pull_request]
+jobs:
+  software:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: digital-tennis/digital-tennis-protocol
+          ref: 5163cd3073be696c0f8da9ab21f2d85f7e160575
+          path: .work/protocol
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet run --project tests/Checks.csproj -c Release -p:ProtocolRoot=${{ github.workspace }}/.work/protocol
+      - run: python3 tools/build-native.py --platform windows --out .work/windows
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/build-native.py --platform mac --out .work/mac

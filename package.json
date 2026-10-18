@@ -1,0 +1,1 @@
+{"name":"com.digital-tennis.controller","version":"0.2.0","displayName":"Digital Tennis BLE Controller","unity":"6000.3","dependencies":{"com.digital-tennis.protocol":"0.2.0"},"description":"Platform transport ports and validated BLE packet-to-racket intents."}

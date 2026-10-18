@@ -4,7 +4,9 @@ BLE 검색·연결·재연결, 메인 스레드 입력 전달, 가상 컨트롤�
 
 ## 현재 상태
 
-개발 계획과 초기 문서가 준비된 단계입니다. 제품 코드는 아직 구현되지 않았습니다. 실행 명령은 D1 도구 선택과 실제 구현 뒤에 추가합니다. 모의 입력으로 먼저 검증하고 실물/다른 제품과 통합합니다.
+Unity 비의존 C# SDK와 Mac CoreBluetooth/Windows GATT 네이티브 전송을 구현했습니다. [계층·검증·배포](docs/architecture.md)를 확인하세요. `dotnet run --project tests/Checks.csproj -c Release -p:ProtocolRoot=/absolute/protocol`로31개 검사를 실행합니다. 실제 연결과 보정 ACK, 동작 테스트는 서로 다른 상태입니다.
+
+정상 사용자 경로는 가짜 장치를 만들지 않습니다. Native helper는 소스에서 별도로 빌드하며 Git에 바이너리를 넣지 않습니다. 컴파일·모의 전송 검사 통과와 실제 OS페어링/라디오/IMU 성공은 구분합니다. 실물 검증은 유예 상태입니다.
 
 ## 개발할 기능과 제출 기준
 

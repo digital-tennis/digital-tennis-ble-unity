@@ -1,0 +1,1 @@
+{"name":"DigitalTennis.Controller.StandaloneChecks","defineConstraints":["DT_STANDALONE_CHECKS"],"includePlatforms":["Editor"],"noEngineReferences":true}
