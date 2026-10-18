@@ -1,6 +1,6 @@
 # BLE SDK와 플랫폼 경계
 
-`Runtime/`은 UnityEngine에 의존하지 않는 netstandard2.1이다. 게임은 플랫폼 구현을 직접 참조하지 않고 `BleControllerClient`의 상태·기기·정규화 의도만 읽는다. 프로토콜 PR1의 커밋 `0f3b8b251af821d7c7eb7f6473b95144d4e12810`을 고정해 사용한다.
+`Runtime/`은 UnityEngine에 의존하지 않는 netstandard2.1이다. 게임은 플랫폼 구현을 직접 참조하지 않고 `BleControllerClient`의 상태·기기·정규화 의도만 읽는다. 프로토콜 PR1의 커밋 `5163cd3073be696c0f8da9ab21f2d85f7e160575`을 고정해 사용한다.
 
 ```text
 Native/mac(CoreBluetooth) 또는 Native/windows(Windows GATT)
