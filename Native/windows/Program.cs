@@ -14,7 +14,7 @@ using Windows.Storage.Streams;
 
 internal sealed class BleWindow:Form
 {
-    static readonly Guid Service=new("6d7c1000-9d40-4cb7-a381-5e908be0a001"),Tx=new("6d7c1001-9d40-4cb7-a381-5e908be0a001"),Rx=new("6d7c1002-9d40-4cb7-a381-5e908be0a001");
+    static readonly Guid Service=new("6d7c1000-9d40-4cb7-a381-5e908be0a001"),Tx=new("6d7c1001-9d40-4cb7-a381-5e908be0a001"),Rx=new("6d7c1002-9d40-4cb7-a381-5e908be0a001"),Security=new("6d7c1003-9d40-4cb7-a381-5e908be0a001");
     readonly string[] args;BluetoothLEAdvertisementWatcher? watcher;BluetoothLEDevice? device;GattDeviceService? service;GattSession? session;GattCharacteristic? command;
     readonly Queue<string> writes=new();bool writing;
     static void Emit(object value){Console.WriteLine(JsonSerializer.Serialize(value));Console.Out.Flush();}
@@ -39,9 +39,18 @@ internal sealed class BleWindow:Form
                 session=await GattSession.FromDeviceIdAsync(device.BluetoothDeviceId);session.MaintainConnection=true;
                 var services=await device.GetGattServicesForUuidAsync(Service,BluetoothCacheMode.Uncached);if(services.Status!=GattCommunicationStatus.Success||services.Services.Count!=1)throw new IOException();service=services.Services[0];
                 var values=await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);if(values.Status!=GattCommunicationStatus.Success)throw new IOException();
-                var notify=values.Characteristics.FirstOrDefault(x=>x.Uuid==Tx&&x.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify));command=values.Characteristics.FirstOrDefault(x=>x.Uuid==Rx&&x.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Write));if(notify==null||command==null)throw new IOException();
+                var notify=values.Characteristics.FirstOrDefault(x=>x.Uuid==Tx&&x.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Notify));command=values.Characteristics.FirstOrDefault(x=>x.Uuid==Rx&&x.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Write));var security=values.Characteristics.FirstOrDefault(x=>x.Uuid==Security&&x.CharacteristicProperties.HasFlag(GattCharacteristicProperties.Read));if(notify==null||command==null||security==null)throw new IOException();
+                notify.ProtectionLevel=command.ProtectionLevel=security.ProtectionLevel=GattProtectionLevel.EncryptionRequired;
                 notify.ValueChanged+=(_,e)=>{using var reader=DataReader.FromBuffer(e.CharacteristicValue);if(reader.UnconsumedBufferLength!=20)return;byte[] b=new byte[20];reader.ReadBytes(b);Emit(new{kind="packet",hex=Convert.ToHexString(b)});};
                 if(await notify.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue.Notify)!=GattCommunicationStatus.Success)throw new IOException();
+                byte[]? bondState=null;
+                for(int retry=0;retry<30;retry++){
+                    var read=await security.ReadValueAsync(BluetoothCacheMode.Uncached);if(read.Status!=GattCommunicationStatus.Success)throw new IOException();
+                    using var bondReader=DataReader.FromBuffer(read.Value);if(bondReader.UnconsumedBufferLength!=4)throw new IOException();var b=new byte[4];bondReader.ReadBytes(b);
+                    if(b[0]!=0x44||b[1]!=1||b[2]<1||b[2]>4||(b[3]&~3)!=0)throw new IOException();
+                    if(b[2]>=2&&(b[3]&1)!=0&&device.DeviceInformation.Pairing.IsPaired){bondState=b;break;}await Task.Delay(100);
+                }
+                if(bondState==null)throw new IOException();Emit(new{kind="security",id=args[1],hex=Convert.ToHexString(bondState)});
                 device.ConnectionStatusChanged+=(_,_)=>{if(device.ConnectionStatus==BluetoothConnectionStatus.Disconnected)Emit(new{kind="disconnected"});};Emit(new{kind="connected",id=args[1]});
             }
             else throw new InvalidDataException();

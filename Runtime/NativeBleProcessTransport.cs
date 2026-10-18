@@ -48,7 +48,7 @@ namespace DigitalTennis.Controller
             try
             {
                 Message message;using(var stream=new MemoryStream(Encoding.UTF8.GetBytes(line)))message=(Message)new DataContractJsonSerializer(typeof(Message)).ReadObject(stream);
-                byte[] packet=null;if(message.Hex!=null){if(message.Hex.Length!=40)return;packet=new byte[20];for(int i=0;i<20;i++)packet[i]=Convert.ToByte(message.Hex.Substring(i*2,2),16);}
+                byte[] packet=null;if(message.Hex!=null){int size=message.Kind=="security"?4:20;if(message.Hex.Length!=size*2)return;packet=new byte[size];for(int i=0;i<size;i++)packet[i]=Convert.ToByte(message.Hex.Substring(i*2,2),16);}
                 Received?.Invoke(new BleTransportEvent{Operation=operation,Kind=message.Kind,Id=message.Id,Name=message.Name,Status=message.Status,Packet=packet,ReceivedAt=clock()});
             }
             catch(Exception e) when(e is SerializationException||e is FormatException||e is OverflowException||e is ArgumentException) { }

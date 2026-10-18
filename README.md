@@ -1,35 +1,38 @@
-# Digital Tennis Windows BLE와 Unity 입력 SDK
+# Digital Tennis · BLE 컨트롤러 SDK
 
-BLE 검색·연결·재연결, 메인 스레드 입력 전달, 가상 컨트롤러를 담당하는 독립 제품 저장소입니다. 전체 프로젝트는 **외장 IMU를 별도로 부착한 NU40-DK**, Unity PC 게임, 1인 AI와 온라인 2인 대전을 12일·3명으로 개발합니다.
+Mac/Windows의 Bluetooth 연결과 본딩을 확인하고, 검증한 라켓 이벤트를 Unity 비의존 입력 의도로 전달한다.
 
-## 현재 상태
+전체 제품은 NU40-DK에 **별도 외장 IMU**를 부착하는 라켓 컨트롤러와 Unity PC 테니스 게임으로 구성한다. 최초 계획은 **12일·3명**이다.
 
-Unity 비의존 C# SDK와 Mac CoreBluetooth/Windows GATT 네이티브 전송을 구현했습니다. [계층·검증·배포](docs/architecture.md)를 확인하세요. `dotnet run --project tests/Checks.csproj -c Release -p:ProtocolRoot=/absolute/protocol`로39개 검사를 실행합니다. 실제 연결과 보정 ACK, 동작 테스트는 서로 다른 상태입니다.
+## 주요 기능
 
-정상 사용자 경로는 가짜 장치를 만들지 않습니다. Native helper는 소스에서 별도로 빌드하며 Git에 바이너리를 넣지 않습니다. 컴파일·모의 전송 검사 통과와 실제 OS페어링/라디오/IMU 성공은 구분합니다. 외장 IMU 보정·인식 정확도와 Windows 실기는 별도 검증합니다. 센서 없는 연결·송수신 확인은 `ProbeLink`와 `tools/probe-link.py`로 진행할 수 있습니다.
+- CoreBluetooth/Windows GATT 검색·OS 페어링·본딩 증거 확인
+- 패킷 CRC·시각·순번·중복/이전 연결 거부
+- 센서 없는 왕복 진단과 보정 ACK, 직렬 WriteWithResponse
 
-## 개발할 기능과 제출 기준
+## 빠른 시작
 
-[초보 개발자용 상세 과제](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/products/digital-tennis-ble-unity.md)에서 상황·입력·출력·예제·예외·완료 기준을 확인합니다.
+SDK: .NET10 SDK(netstandard2.1 출력). 네이티브 모듈: macOS Xcode 도구/Swift, Windows용 .NET desktop 타깃.
 
-- [BL-01 표준 입력과 가상 컨트롤러](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/products/digital-tennis-ble-unity.md#bl-01)
-- [BL-02 Windows BLE 검색과 Notify 구독](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/products/digital-tennis-ble-unity.md#bl-02)
-- [BL-03 패킷 검증과 Unity 메인 스레드 전달](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/products/digital-tennis-ble-unity.md#bl-03)
-- [BL-04 재연결과 보정 UI 및 지연 측정](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/products/digital-tennis-ble-unity.md#bl-04)
+```sh
+dotnet run --project tests/Checks.csproj -c Release -p:ProtocolRoot=/absolute/path/to/digital-tennis-protocol
+python3 tools/build-native.py --platform mac --out .work/native/mac
+```
 
-## 개발 환경과 예상 구조
+## 책임과 현재 범위
 
-초기 담당 역할은 C / A 검토입니다. 실제 IMU·배선·펌웨어 SDK·Unity·Windows·런타임 버전은 D1에 [환경표](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/project/overview.md)와 결정 기록에 남깁니다.
+IMU 샘플을 다시 분류하거나 테니스 판정을 하지 않는다. 연결 완료는 암호화·본딩 증거를 요구하며 센서 보정/설정 저장과 다르다. 정상 경로에 가짜 기기를 추가하지 않는다. Windows 빌드와 실제 Windows 본딩은 구분한다.
 
-현재 구조는 `Runtime/ · Native/mac/ · Native/windows/ · tests/ · tools/ · docs/`입니다. SDK와 플랫폼 helper를 분리하며 게임은 SDK의 연결 상태·통신 확인·입력 의도만 사용합니다.
+## 구조와 문서
 
-## 검증과 협업
+`Runtime/`: 순수 C# · `Native/mac`, `Native/windows`: OS 연결 · `tests/`: 모의 전송 검사 · `tools/`: 빌드/진단
 
-- [12일 WBS](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/planning/wbs.md)
-- [컨트롤러 계약](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/contracts/controller-protocol.md)
-- [온라인 계약](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/contracts/online-protocol.md)
-- [수용 테스트](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/testing/acceptance.md)
-- [브랜치·PR 작업 방법](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/guides/contributing.md)
-- [모든 제품과 의존 관계](https://github.com/digital-tennis/digital-tennis-docs/blob/main/docs/project/repositories.md)
+[계층과 배포](docs/architecture.md), [전송 구현](Runtime/NativeBleProcessTransport.cs)
 
-라이선스는 코드와 제3자 자산 조건을 검토한 뒤 팀이 선택합니다.
+## 도움말과 기여
+
+재현 가능한 문제는 [이슈](https://github.com/digital-tennis/digital-tennis-ble-unity/issues)로 남긴다. 관리 주체는 [Digital Tennis](https://github.com/digital-tennis)이며 [기여 안내](CONTRIBUTING.md)를 따른다. 검증 커밋을 고정하고 실제 장치 성공·모의 검사·교차 빌드를 구분한다.
+
+## 라이선스
+
+프로젝트 자체 코드·문서는 **[Apache-2.0](LICENSE)**이다. [NOTICE](NOTICE)와 [외부 코드·자산 고지](THIRD_PARTY_NOTICES.md)를 함께 확인한다. 외부 자산에 Apache-2.0을 덮어쓰지 않는다.

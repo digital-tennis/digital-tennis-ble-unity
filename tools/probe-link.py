@@ -28,7 +28,7 @@ def main():
             try:messages.put(json.loads(line))
             except ValueError:pass
     threading.Thread(target=read,daemon=True).start()
-    result={'scope':'Actual native BLE scan/link probe only; no sensor or gameplay proof','connected':False,'reply':False,'devices':[]}
+    result={'scope':'Actual native BLE scan/link probe only; no sensor or gameplay proof','connected':False,'reply':False,'bondVerified':False,'devices':[]}
     failed=False;nonce=secrets.randbelow(65535)+1;start=None;deadline=time.monotonic()+(5 if args.scan else 30)
     try:
         while time.monotonic()<deadline:
@@ -38,7 +38,12 @@ def main():
                 continue
             kind=event.get('kind')
             if kind=='device' and args.scan and not any(d['id']==event['id'] for d in result['devices']):result['devices'].append({'id':event['id'],'name':event.get('name')})
-            elif kind=='connected' and event.get('id')==args.device:
+            elif kind=='security' and event.get('id')==args.device:
+                try:security=bytes.fromhex(event.get('hex',''))
+                except ValueError:continue
+                if len(security)==4 and security[:2]==bytes([0x44,1]) and 2<=security[2]<=4 and security[3]&~3==0 and security[3]&1:
+                    result['bondVerified']=True;result['securityLevel']=security[2];result['secureConnections']=bool(security[3]&2)
+            elif kind=='connected' and event.get('id')==args.device and result['bondVerified']:
                 result['connected']=True
                 body=struct.pack('<BBBBHIHBBhhB',0x44,2,130,0,nonce,0,nonce,0,0,0,0,255)
                 start=time.monotonic();deadline=start+2

@@ -33,13 +33,16 @@ namespace DigitalTennis.Controller
         private readonly List<BleDevice> devices=new List<BleDevice>();
         private readonly HashSet<uint> seen=new HashSet<uint>();private readonly Queue<uint> order=new Queue<uint>();
         private ushort lastSequence,commandId;private bool hasSequence,disposed;
-        private ulong operation;private double calibrationDeadline,probeDeadline,probeStarted,scanStarted=double.NaN;private ushort probeId;private uint outputSequence;
+        private ulong operation;private double calibrationDeadline,probeDeadline,probeStarted,scanStarted=double.NaN,connectStarted=double.NaN;private ushort probeId;private uint outputSequence;
         public BleLinkState State {get;private set;}
         public string Status {get;private set;}="연결할 기기를 찾아 주세요.";
         public string ConnectedDeviceId {get;private set;}
         public ulong ConnectionEpoch {get;private set;}
         public bool Available=>transport.Available;
         public IReadOnlyList<BleDevice> Devices=>devices.AsReadOnly();
+        public bool BondVerified {get;private set;}
+        public byte SecurityLevel {get;private set;}
+        public bool SecureConnections {get;private set;}
         public bool CalibrationPending {get;private set;}
         public bool Calibrated {get;private set;}
         public bool LinkProbePending {get;private set;}
@@ -49,7 +52,7 @@ namespace DigitalTennis.Controller
         public int Rejected {get;private set;}
         public BleControllerClient(IBleTransport transport){this.transport=transport??throw new ArgumentNullException(nameof(transport));State=transport.Available?BleLinkState.Disconnected:BleLinkState.Unavailable;transport.Received+=Receive;}
         private void Receive(BleTransportEvent e){if(e==null)return;lock(ingress){if(disposed)return;if(ingress.Count>=128)ingress.Dequeue();ingress.Enqueue(new BleTransportEvent{Operation=e.Operation,Kind=e.Kind,Id=e.Id,Name=e.Name,Status=e.Status,ReceivedAt=e.ReceivedAt,Packet=e.Packet==null?null:(byte[])e.Packet.Clone()});}}
-        private void Reset(){transport.Disconnect();operation++;if(operation==0)operation++;ConnectedDeviceId=null;ConnectionEpoch=0;Calibrated=CalibrationPending=LinkProbePending=LinkProbePassed=false;LinkRoundTripMs=0;LinkStatus="연결 후 통신을 확인할 수 있습니다.";ClearInput();hasSequence=false;seen.Clear();order.Clear();lock(ingress)ingress.Clear();}
+        private void Reset(){transport.Disconnect();operation++;if(operation==0)operation++;ConnectedDeviceId=null;ConnectionEpoch=0;BondVerified=false;SecurityLevel=0;SecureConnections=false;connectStarted=double.NaN;Calibrated=CalibrationPending=LinkProbePending=LinkProbePassed=false;LinkRoundTripMs=0;LinkStatus="연결 후 통신을 확인할 수 있습니다.";ClearInput();hasSequence=false;seen.Clear();order.Clear();lock(ingress)ingress.Clear();}
         public void Scan(){if(disposed||!Available)return;Reset();scanStarted=double.NaN;devices.Clear();State=BleLinkState.Scanning;Status="가까운 라켓을 찾고 있습니다.";transport.Scan(operation);}
         public bool Connect(string id){if(disposed||!Available||!devices.Exists(x=>x.Id==id))return false;Reset();ConnectedDeviceId=id;State=BleLinkState.Connecting;Status="연결을 요청했습니다.";transport.Connect(id,operation);return true;}
         public void Disconnect(){if(disposed)return;Reset();State=Available?BleLinkState.Disconnected:BleLinkState.Unavailable;Status="연결을 해제했습니다.";}
@@ -67,6 +70,7 @@ namespace DigitalTennis.Controller
         {
             if(disposed||!Finite(now)||now<0)return;
             if(State==BleLinkState.Scanning&&double.IsNaN(scanStarted))scanStarted=now;
+            if((State==BleLinkState.Connecting||State==BleLinkState.Pairing)&&double.IsNaN(connectStarted))connectStarted=now;
             for(int count=0;count<128;count++)
             {
                 BleTransportEvent e;lock(ingress){if(ingress.Count==0)break;e=ingress.Dequeue();}
@@ -75,13 +79,18 @@ namespace DigitalTennis.Controller
                 {
                     case "device":if(State==BleLinkState.Scanning&&!string.IsNullOrEmpty(e.Id)&&e.Id.Length<=256&&!devices.Exists(x=>x.Id==e.Id)&&devices.Count<64)devices.Add(new BleDevice(e.Id,string.IsNullOrWhiteSpace(e.Name)?"Digital Tennis Racket":CleanName(e.Name)));break;
                     case "pairing":if(State==BleLinkState.Connecting) {State=BleLinkState.Pairing;Status="운영체제의 페어링 승인을 확인해 주세요.";}break;
-                    case "connected":if((State==BleLinkState.Connecting||State==BleLinkState.Pairing)&&e.Id==ConnectedDeviceId){State=BleLinkState.Connected;ConnectionEpoch=operation;hasSequence=false;seen.Clear();order.Clear();Status="연결 완료 · 라켓을 정지한 뒤 보정하세요.";}break;
+                    case "security":
+                        if((State==BleLinkState.Connecting||State==BleLinkState.Pairing)&&e.Id==ConnectedDeviceId&&LinkSecurity.Decode(e.Packet,out var security)==DecodeError.None&&security.Ready){BondVerified=true;SecurityLevel=security.Level;SecureConnections=security.SecureConnections;}
+                        else Rejected++;
+                        break;
+                    case "connected":if((State==BleLinkState.Connecting||State==BleLinkState.Pairing)&&e.Id==ConnectedDeviceId&&BondVerified){State=BleLinkState.Connected;ConnectionEpoch=operation;hasSequence=false;seen.Clear();order.Clear();Status="페어링·암호화·본딩 확인 완료 · 센서 보정은 별도입니다.";}break;
                     case "packet":ProcessPacket(e,now);break;
                     case "disconnected":Reset();State=BleLinkState.Disconnected;Status="연결이 끊겼습니다. 다시 연결하고 테스트해 주세요.";break;
                     case "unavailable":Reset();State=BleLinkState.Unavailable;Status=e.Status??"Bluetooth를 사용할 수 없습니다.";break;
                     case "error":Reset();State=BleLinkState.Error;Status=e.Status??"연결하지 못했습니다.";break;
                 }
             }
+            if((State==BleLinkState.Connecting||State==BleLinkState.Pairing)&&now-connectStarted>=60){Reset();State=BleLinkState.Error;Status="페어링 확인 시간이 지났습니다. OS 승인과 기기 전원을 확인해 주세요.";}
             if(LinkProbePending&&now>=probeDeadline){LinkProbePending=false;LinkProbePassed=false;LinkStatus="응답이 없습니다. 기기 연결과 지원 펌웨어를 확인하세요.";}
             if(CalibrationPending&&now>=calibrationDeadline){CalibrationPending=false;Calibrated=false;Status="보정 응답 시간이 지났습니다. 다시 보정해 주세요.";ClearInput();}
             if(State==BleLinkState.Scanning&&now-scanStarted>=4){transport.Disconnect();State=BleLinkState.Disconnected;Status=devices.Count==0?"기기를 찾지 못했습니다. 전원·거리를 확인하고 다시 검색해 주세요.":"검색 완료 · 목록에서 본인 라켓을 선택하세요.";}
