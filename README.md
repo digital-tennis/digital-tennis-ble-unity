@@ -122,3 +122,7 @@ UPM 패키지 이름은 `com.digital-tennis.controller`입니다. protocol 패�
 ## 라이선스
 
 직접 작성한 코드·문서는 [Apache-2.0](LICENSE)입니다. [NOTICE](NOTICE)와 [외부 런타임 고지](THIRD_PARTY_NOTICES.md)를 함께 배포합니다.
+
+### 버튼 프로필과 IMU 프로필
+
+현재 본딩 연결의 LINK_PROBE에 대응한 LINK_REPLY.kind=1은 버튼 프로필입니다. 이 경우에만 v2 BUTTON4/5/6/7을 서브/포핸드/백핸드/스킬 의도로 전달합니다. UseGameShotSettings는 측정값이 없는 버튼임을 뜻하며 소비 게임의 CSV 기본 세기를 사용합니다. Calibrated는 계속 거짓이고 SWING은 거부합니다. kind=0 IMU 프로필은 기존 보정 ACK와 motion-ready를 요구합니다. 연결 해제·잘못된 nonce·만료·중복 입력은 권한을 부여하지 않습니다.
