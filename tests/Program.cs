@@ -34,6 +34,25 @@ static class Program
   radio.Event("packet",23.01,packet:Packet(3,probe.EventId,0,3,PacketType.LinkReply));client.Tick(23.01);Check(!client.LinkProbePassed&&!client.Calibrated,"late response cannot revive test or calibration");
   client.ProbeLink(24);client.Disconnect();Check(!client.LinkProbePending&&!client.LinkProbePassed,"disconnect discards probe result");
   client.Scan();radio.Event("device",id:"racket");client.Tick(1000);client.Connect("racket");radio.Event("pairing");client.Tick(1000);client.Tick(1060);Check(client.State==BleLinkState.Error&&!client.BondVerified&&client.ConnectionEpoch==0,"unapproved OS pairing times out without opening input");
+  client.Disconnect();client.Scan();radio.Event("device",id:"racket");client.Tick(1100);client.Connect("racket");radio.Event("connected",1100,id:"racket");client.Tick(1100);
+  Check(!client.ButtonInputReady&&!client.GameplayReady,"bond alone does not authorize button gameplay");
+  radio.Event("packet",1100.01,packet:Packet(1,300,4,0,PacketType.Button));client.Tick(1100.01);Check(!client.TryRead(out _),"unnegotiated button rejected");
+  client.ProbeLink(1101);PacketCodec.Decode(radio.Written,out probe);
+  radio.Event("packet",1101.01,packet:Packet(2,(ushort)(probe.EventId+1),1,0,PacketType.LinkReply));client.Tick(1101.01);Check(!client.ButtonInputReady,"wrong nonce cannot select button mode");
+  radio.Event("packet",1101.02,packet:Packet(3,probe.EventId,1,0,PacketType.LinkReply));client.Tick(1101.02);
+  Check(client.ButtonInputReady&&client.GameplayReady&&!client.Calibrated&&!client.Calibrate(1101.02),"explicit authenticated button profile works without IMU calibration");
+  SwingKind[] expected={SwingKind.Serve,SwingKind.Forehand,SwingKind.Backhand,SwingKind.Skill};
+  for(byte k=4;k<=7;k++){
+   radio.Event("packet",1101.03,packet:Packet((ushort)(k+1),(ushort)(400+k),k,0,PacketType.Button));client.Tick(1101.03);
+   Check(client.TryRead(out var input)&&input.Kind==expected[k-4]&&input.UseGameShotSettings&&input.ReceivedAt==1101.03,"physical button semantics to normalized intent");
+  }
+  radio.Event("packet",1101.04,packet:Packet(9,407,7,0,PacketType.Button));client.Tick(1101.04);Check(!client.TryRead(out _),"three radio retransmissions produce one skill");
+  radio.Event("packet",1101.05,packet:Packet(10,500,8,3));client.Tick(1101.05);Check(!client.TryRead(out _),"button mode cannot forge IMU swings");
+  radio.Event("packet",1101.06,packet:Packet(11,501,1,0,PacketType.Button));client.Tick(1101.06);Check(!client.TryRead(out _),"legacy confirm is not a serve");
+  radio.Event("packet",1101.07,packet:Packet(12,502,4,0,PacketType.Button));client.ClearInput();client.Tick(1101.07);Check(!client.TryRead(out _),"scene/source change clears queued buttons too");
+  old=radio.Operation;client.Disconnect();Check(!client.ButtonInputReady&&!client.GameplayReady,"disconnect revokes button mode");
+  client.Scan();radio.Event("device",id:"racket");client.Tick(1200);client.Connect("racket");radio.Event("connected",1200,id:"racket");client.Tick(1200);
+  radio.Event("packet",1200.01,packet:Packet(13,503,7,0,PacketType.Button),op:old);client.Tick(1200.01);Check(!client.TryRead(out _),"old connection button cannot activate skill");
   using var missing=new NativeBleProcessTransport("/nonexistent/digital-tennis-ble",()=>9);Check(!missing.Available,"missing native helper honest");
   Console.WriteLine($"ALL {checks} CONTROLLER CHECKS PASSED");
  }
