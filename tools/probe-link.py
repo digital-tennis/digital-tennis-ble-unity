@@ -29,7 +29,7 @@ def main():
             except ValueError:pass
     threading.Thread(target=read,daemon=True).start()
     result={'scope':'Actual native BLE scan/link probe only; no sensor or gameplay proof','connected':False,'reply':False,'bondVerified':False,'devices':[]}
-    failed=False;nonce=secrets.randbelow(65535)+1;start=None;deadline=time.monotonic()+(5 if args.scan else 30)
+    failed=False;nonce=secrets.randbelow(65535)+1;start=None;deadline=time.monotonic()+(5 if args.scan else 60)
     try:
         while time.monotonic()<deadline:
             try:event=messages.get(timeout=.1)

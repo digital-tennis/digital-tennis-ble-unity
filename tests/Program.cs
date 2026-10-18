@@ -33,6 +33,7 @@ static class Program
   Check(client.ProbeLink(21),"retest resets previous success");client.Tick(23);Check(!client.LinkProbePending&&!client.LinkProbePassed,"write without response times out");
   radio.Event("packet",23.01,packet:Packet(3,probe.EventId,0,3,PacketType.LinkReply));client.Tick(23.01);Check(!client.LinkProbePassed&&!client.Calibrated,"late response cannot revive test or calibration");
   client.ProbeLink(24);client.Disconnect();Check(!client.LinkProbePending&&!client.LinkProbePassed,"disconnect discards probe result");
+  client.Scan();radio.Event("device",id:"racket");client.Tick(1000);client.Connect("racket");radio.Event("pairing");client.Tick(1000);client.Tick(1060);Check(client.State==BleLinkState.Error&&!client.BondVerified&&client.ConnectionEpoch==0,"unapproved OS pairing times out without opening input");
   using var missing=new NativeBleProcessTransport("/nonexistent/digital-tennis-ble",()=>9);Check(!missing.Available,"missing native helper honest");
   Console.WriteLine($"ALL {checks} CONTROLLER CHECKS PASSED");
  }

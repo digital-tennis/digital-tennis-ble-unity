@@ -12,7 +12,7 @@ func emit(_ fields:[String:String]) {
 }
 final class RacketCentral:NSObject,CBCentralManagerDelegate,CBPeripheralDelegate {
     var central:CBCentralManager!;var peripheral:CBPeripheral?;var command:CBCharacteristic?;var notify:CBCharacteristic?
-    var writes=[Data]();var writing=false;var securityCharacteristic:CBCharacteristic?;var secureReady=false;var securityReads=0
+    var writes=[Data]();var writing=false;var securityCharacteristic:CBCharacteristic?;var secureReady=false;var securityReads=0;var notificationAttempts=0
     let mode:String;let deviceId:String?
     init(mode:String,id:String?){self.mode=mode;self.deviceId=id;super.init();central=CBCentralManager(delegate:self,queue:.main)}
     func centralManagerDidUpdateState(_ central:CBCentralManager){
@@ -36,9 +36,18 @@ final class RacketCentral:NSObject,CBCentralManagerDelegate,CBPeripheralDelegate
         securityCharacteristic=values.first(where:{$0.uuid == securityStatus && $0.properties.contains(.read)})
         guard command != nil,securityCharacteristic != nil,let notify=notify else{emit(["kind":"error","status":"지원하는 라켓 Notify/명령 특성이 없습니다."]);return}
         // The encrypted CCC subscription triggers the OS pairing UI. Never fabricate approval.
-        peripheral.setNotifyValue(true,for:notify)
+        subscribe(peripheral,notify)
     }
-    func peripheral(_ peripheral:CBPeripheral,didUpdateNotificationStateFor characteristic:CBCharacteristic,error:Error?){guard error == nil,characteristic.uuid == tx,characteristic.isNotifying else{emit(["kind":"error","status":failure("페어링 또는 알림 구독이 완료되지 않았습니다.",error)]);return};readSecurity(peripheral)}
+    func subscribe(_ peripheral:CBPeripheral,_ characteristic:CBCharacteristic){notificationAttempts+=1;peripheral.setNotifyValue(true,for:characteristic)}
+    func peripheral(_ peripheral:CBPeripheral,didUpdateNotificationStateFor characteristic:CBCharacteristic,error:Error?){
+        guard characteristic.uuid == tx else{return}
+        if let error=error as NSError?,error.domain == CBATTErrorDomain,(error.code == 5 || error.code == 15),notificationAttempts<90 {
+            // Protected CCC can report insufficient encryption while OS SMP approval
+            // is still pending. Keep the link alive; never count this as approval.
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.5){if peripheral.state == .connected{self.subscribe(peripheral,characteristic)}};return
+        }
+        guard error == nil,characteristic.isNotifying else{emit(["kind":"error","status":failure("페어링 또는 알림 구독이 완료되지 않았습니다.",error)]);return};readSecurity(peripheral)
+    }
     func readSecurity(_ peripheral:CBPeripheral){guard !secureReady,securityReads<30,let characteristic=securityCharacteristic else{if !secureReady{emit(["kind":"error","status":"기기에 저장된 본딩·암호화를 확인하지 못했습니다."])};return};securityReads+=1;peripheral.readValue(for:characteristic)}
     func peripheral(_ peripheral:CBPeripheral,didUpdateValueFor characteristic:CBCharacteristic,error:Error?){
         if characteristic.uuid == securityStatus {
