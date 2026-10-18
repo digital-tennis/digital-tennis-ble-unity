@@ -32,7 +32,7 @@ namespace DigitalTennis.Controller
             if(id!=null&&(id.Length>256||id.IndexOfAny(new[]{'"','\r','\n','\0'})>=0)){Emit(operation,"error","기기 식별자가 올바르지 않습니다.");return;}
             try
             {
-                var process=new Process{StartInfo=new ProcessStartInfo(executable,mode+(id==null?"":" \""+id+"\"")){UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,RedirectStandardInput=true,CreateNoWindow=true},EnableRaisingEvents=true};
+                var process=new Process{StartInfo=new ProcessStartInfo(executable,mode+(id==null?"":" \""+id+"\"")){UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true,RedirectStandardInput=true,CreateNoWindow=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8},EnableRaisingEvents=true};
                 process.OutputDataReceived+=(sender,args)=>Read(operation,args.Data);
                 // Never surface arbitrary native stderr (could contain OS identifiers/tokens).
                 process.ErrorDataReceived+=(sender,args)=>{};

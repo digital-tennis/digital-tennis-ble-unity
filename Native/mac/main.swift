@@ -5,6 +5,7 @@ let service = CBUUID(string:"6d7c1000-9d40-4cb7-a381-5e908be0a001")
 let tx = CBUUID(string:"6d7c1001-9d40-4cb7-a381-5e908be0a001")
 let rx = CBUUID(string:"6d7c1002-9d40-4cb7-a381-5e908be0a001")
 let securityStatus = CBUUID(string:"6d7c1003-9d40-4cb7-a381-5e908be0a001")
+func failure(_ message:String,_ error:Error?)->String { guard let error=error else{return message};return message+" (OS code "+String((error as NSError).code)+")" }
 func emit(_ fields:[String:String]) {
     guard let bytes=try? JSONSerialization.data(withJSONObject:fields,options:[.sortedKeys]),let line=String(data:bytes,encoding:.utf8) else{return}
     print(line);fflush(stdout)
@@ -37,11 +38,11 @@ final class RacketCentral:NSObject,CBCentralManagerDelegate,CBPeripheralDelegate
         // The encrypted CCC subscription triggers the OS pairing UI. Never fabricate approval.
         peripheral.setNotifyValue(true,for:notify)
     }
-    func peripheral(_ peripheral:CBPeripheral,didUpdateNotificationStateFor characteristic:CBCharacteristic,error:Error?){guard error == nil,characteristic.uuid == tx,characteristic.isNotifying else{emit(["kind":"error","status":"페어링 또는 알림 구독이 완료되지 않았습니다."]);return};readSecurity(peripheral)}
+    func peripheral(_ peripheral:CBPeripheral,didUpdateNotificationStateFor characteristic:CBCharacteristic,error:Error?){guard error == nil,characteristic.uuid == tx,characteristic.isNotifying else{emit(["kind":"error","status":failure("페어링 또는 알림 구독이 완료되지 않았습니다.",error)]);return};readSecurity(peripheral)}
     func readSecurity(_ peripheral:CBPeripheral){guard !secureReady,securityReads<30,let characteristic=securityCharacteristic else{if !secureReady{emit(["kind":"error","status":"기기에 저장된 본딩·암호화를 확인하지 못했습니다."])};return};securityReads+=1;peripheral.readValue(for:characteristic)}
     func peripheral(_ peripheral:CBPeripheral,didUpdateValueFor characteristic:CBCharacteristic,error:Error?){
         if characteristic.uuid == securityStatus {
-            guard error == nil,let value=characteristic.value else{emit(["kind":"error","status":"본딩 상태 읽기에 실패했습니다."]);return}
+            guard error == nil,let value=characteristic.value else{emit(["kind":"error","status":failure("본딩 상태 읽기에 실패했습니다.",error)]);return}
             let b=[UInt8](value)
             guard b.count==4,b[0]==0x44,b[1]==1,b[2]>=1,b[2]<=4,b[3]&0xfc==0 else{emit(["kind":"error","status":"지원하는 보안 상태 규격이 아닙니다."]);return}
             if b[2]>=2 && b[3]&1==1 {if !secureReady{secureReady=true;emit(["kind":"security","id":peripheral.identifier.uuidString,"hex":b.map{String(format:"%02x",$0)}.joined()]);emit(["kind":"connected","id":peripheral.identifier.uuidString])}}
