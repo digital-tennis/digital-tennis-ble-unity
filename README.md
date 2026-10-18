@@ -105,11 +105,11 @@ UPM 패키지 이름은 `com.digital-tennis.controller`입니다. protocol 패�
 | 대상 | 구현 | 확인 범위 |
 | --- | --- | --- |
 | 공통 SDK | 검색·연결 상태, 패킷·보정·링크 검사 | 독립 .NET 검사와 Unity 통합 검사 |
-| macOS | CoreBluetooth, arm64/x86_64 모듈 | 빌드·실제 기기 검색 확인. 최종 OS 본딩·테니스 왕복은 진행 중 |
+| macOS | CoreBluetooth, arm64/x86_64 모듈 | 빌드·실제 NU-54 본딩·테니스 왕복·보드 재시작 후 재연결 확인 |
 | Windows | WinRT GATT·OS 페어링, x64 모듈 | 교차 빌드 확인. 실물 Windows 본딩은 미검증 |
 | 외장 IMU | 보정·정규화 이벤트 수신 경계 | 실제 센서 장착·제스처 검증은 유예 |
 
-대상 제품은 **NU40-DK + 별도 외장 IMU**입니다. NU-54는 센서 없는 시험용입니다. `LINK_REPLY` 성공은 센서 보정이나 경기 입력 준비를 뜻하지 않습니다. 실제 기기 검증 이력은 [게임의 본딩 검수](https://github.com/digital-tennis/digital-tennis-game/blob/main/docs/controller-bonding.md)를 확인하세요.
+대상 제품은 **NU40-DK + 별도 외장 IMU**입니다. NU-54는 센서 없는 시험용입니다. `LINK_REPLY` 성공은 센서 보정이나 경기 입력 준비를 뜻하지 않습니다. 실제 기기 검증 이력은 [게임의 본딩 검수](https://github.com/digital-tennis/digital-tennis-game/blob/7af42a20b42975b21a41ab3f7055c6846fb510e9/docs/controller-bonding.md)를 확인하세요.
 
 ## 문서·소스
 

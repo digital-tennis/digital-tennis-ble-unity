@@ -64,7 +64,7 @@ python3 tools/probe-link.py --helper .work/native/mac/digital-tennis-ble --devic
 
 이 두 명령은 명시적으로 실행할 때 실제 Bluetooth를 사용합니다. 기기 식별자가 포함될 수 있는 로컬 결과는 공개하지 않습니다. 진단 콜백은 길이·이벤트 종류·오류 타입만 기록하며 원시 식별자·OS stderr를 노출하지 않습니다.
 
-현재 실제 검색 확인과 최종 OS 본딩·테니스 왕복 미완료를 구분합니다. Windows 실물·외장 IMU 정확도도 별도 검수입니다. 최신 결과는 [게임 본딩 기록](https://github.com/digital-tennis/digital-tennis-game/blob/main/docs/controller-bonding.md)을 기준으로 합니다. 제품 타깃은 NU40-DK+별도 외장 IMU이며 NU-54는 센서 없는 시험용입니다.
+2026-10-19 Mac 일반 Unity 창에서 실제 NU-54 검색·암호화/본딩·LINK_REPLY·보드 재시작 후 본딩 재사용을 확인했습니다. 별도 native 진단은 L2/bonded/SC와 52.131ms 왕복, 센서 미준비를 기록했습니다. 새 OS 승인 팝업 조작은 주장하지 않으며 Windows 실물·외장 IMU 정확도는 별도 검수입니다. 최신 결과는 [게임 본딩 기록](https://github.com/digital-tennis/digital-tennis-game/blob/7af42a20b42975b21a41ab3f7055c6846fb510e9/docs/controller-bonding.md)을 기준으로 합니다. 제품 타깃은 NU40-DK+별도 외장 IMU이며 NU-54는 센서 없는 시험용입니다.
 
 ## 참고한 연결 패턴
 
