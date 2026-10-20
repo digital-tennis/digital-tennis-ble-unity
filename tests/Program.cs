@@ -54,6 +54,7 @@ static class Program
   client.Scan();radio.Event("device",id:"racket");client.Tick(1200);client.Connect("racket");radio.Event("connected",1200,id:"racket");client.Tick(1200);
   radio.Event("packet",1200.01,packet:Packet(13,503,7,0,PacketType.Button),op:old);client.Tick(1200.01);Check(!client.TryRead(out _),"old connection button cannot activate skill");
   using var missing=new NativeBleProcessTransport("/nonexistent/digital-tennis-ble",()=>9);Check(!missing.Available,"missing native helper honest");
+  PhysicalChecks.Run();
   Console.WriteLine($"ALL {checks} CONTROLLER CHECKS PASSED");
  }
 }

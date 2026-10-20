@@ -10,8 +10,13 @@ namespace DigitalTennis.Controller
     public readonly struct BleDevice { public readonly string Id,Name;public BleDevice(string id,string name){Id=id;Name=name;} }
     public readonly struct RacketIntent
     {
+        public readonly bool IsPhysical,ButtonPressed;public readonly MotionPattern Motion;public readonly byte ButtonNumber;
         public readonly bool UseGameShotSettings;public readonly SwingKind Kind;public readonly uint Sequence;public readonly ulong Epoch;public readonly double ReceivedAt;public readonly float Power,AimX,AimZ;
-        public RacketIntent(SwingKind kind,uint sequence,ulong epoch,double received,float power,float aimX,float aimZ,bool useGameShotSettings=false){UseGameShotSettings=useGameShotSettings;Kind=kind;Sequence=sequence;Epoch=epoch;ReceivedAt=received;Power=power;AimX=aimX;AimZ=aimZ;}
+        public RacketIntent(SwingKind kind,uint sequence,ulong epoch,double received,float power,float aimX,float aimZ,bool useGameShotSettings=false):this(){UseGameShotSettings=useGameShotSettings;Kind=kind;Sequence=sequence;Epoch=epoch;ReceivedAt=received;Power=power;AimX=aimX;AimZ=aimZ;}
+        public RacketIntent(MotionPattern motion,uint sequence,ulong epoch,double received,float power,float aimX,float aimZ):this()
+        {IsPhysical=true;Motion=motion;Sequence=sequence;Epoch=epoch;ReceivedAt=received;Power=power;AimX=aimX;AimZ=aimZ;}
+        public RacketIntent(byte button,bool pressed,uint sequence,ulong epoch,double received):this()
+        {IsPhysical=true;ButtonNumber=button;ButtonPressed=pressed;Sequence=sequence;Epoch=epoch;ReceivedAt=received;UseGameShotSettings=true;}
     }
     public sealed class BleTransportEvent
     {
@@ -32,6 +37,7 @@ namespace DigitalTennis.Controller
         private readonly Queue<RacketIntent> intents=new Queue<RacketIntent>();
         private readonly List<BleDevice> devices=new List<BleDevice>();
         private readonly HashSet<uint> seen=new HashSet<uint>();private readonly Queue<uint> order=new Queue<uint>();
+        private uint physicalButtons;
         private ushort lastSequence,commandId;private bool hasSequence,disposed;
         private ulong operation;private double calibrationDeadline,probeDeadline,probeStarted,scanStarted=double.NaN,connectStarted=double.NaN;private ushort probeId;private uint outputSequence;
         public BleLinkState State {get;private set;}
@@ -44,8 +50,10 @@ namespace DigitalTennis.Controller
         public byte SecurityLevel {get;private set;}
         public bool SecureConnections {get;private set;}
         public ControllerInputProfile InputProfile {get;private set;}=ControllerInputProfile.Motion;
-        public bool ButtonInputReady=>InputProfile==ControllerInputProfile.Buttons&&BondVerified&&LinkProbePassed;
-        public bool GameplayReady=>State==BleLinkState.Connected&&(ButtonInputReady||InputProfile==ControllerInputProfile.Motion&&Calibrated&&!CalibrationPending);
+        public bool PhysicalInputMode=>InputProfile==ControllerInputProfile.PhysicalMotion||InputProfile==ControllerInputProfile.PhysicalButtons;
+        public bool IsButtonProfile=>InputProfile==ControllerInputProfile.Buttons||InputProfile==ControllerInputProfile.PhysicalButtons;
+        public bool ButtonInputReady=>IsButtonProfile&&BondVerified&&LinkProbePassed;
+        public bool GameplayReady=>State==BleLinkState.Connected&&(ButtonInputReady||!IsButtonProfile&&Calibrated&&!CalibrationPending&&(!PhysicalInputMode||LinkProbePassed));
         public bool CalibrationPending {get;private set;}
         public bool Calibrated {get;private set;}
         public bool LinkProbePending {get;private set;}
@@ -55,16 +63,16 @@ namespace DigitalTennis.Controller
         public int Rejected {get;private set;}
         public BleControllerClient(IBleTransport transport){this.transport=transport??throw new ArgumentNullException(nameof(transport));State=transport.Available?BleLinkState.Disconnected:BleLinkState.Unavailable;transport.Received+=Receive;}
         private void Receive(BleTransportEvent e){if(e==null)return;lock(ingress){if(disposed)return;if(ingress.Count>=128)ingress.Dequeue();ingress.Enqueue(new BleTransportEvent{Operation=e.Operation,Kind=e.Kind,Id=e.Id,Name=e.Name,Status=e.Status,ReceivedAt=e.ReceivedAt,Packet=e.Packet==null?null:(byte[])e.Packet.Clone()});}}
-        private void Reset(){transport.Disconnect();operation++;if(operation==0)operation++;ConnectedDeviceId=null;ConnectionEpoch=0;InputProfile=ControllerInputProfile.Motion;BondVerified=false;SecurityLevel=0;SecureConnections=false;connectStarted=double.NaN;Calibrated=CalibrationPending=LinkProbePending=LinkProbePassed=false;LinkRoundTripMs=0;LinkStatus="연결 후 통신을 확인할 수 있습니다.";ClearInput();hasSequence=false;seen.Clear();order.Clear();lock(ingress)ingress.Clear();}
+        private void Reset(){transport.Disconnect();operation++;if(operation==0)operation++;ConnectedDeviceId=null;ConnectionEpoch=0;physicalButtons=0;InputProfile=ControllerInputProfile.Motion;BondVerified=false;SecurityLevel=0;SecureConnections=false;connectStarted=double.NaN;Calibrated=CalibrationPending=LinkProbePending=LinkProbePassed=false;LinkRoundTripMs=0;LinkStatus="연결 후 통신을 확인할 수 있습니다.";ClearInput();hasSequence=false;seen.Clear();order.Clear();lock(ingress)ingress.Clear();}
         public void Scan(){if(disposed||!Available)return;Reset();scanStarted=double.NaN;devices.Clear();State=BleLinkState.Scanning;Status="가까운 라켓을 찾고 있습니다.";transport.Scan(operation);}
         public bool Connect(string id){if(disposed||!Available||!devices.Exists(x=>x.Id==id))return false;Reset();ConnectedDeviceId=id;State=BleLinkState.Connecting;Status="연결을 요청했습니다.";transport.Connect(id,operation);return true;}
         public void Disconnect(){if(disposed)return;Reset();State=Available?BleLinkState.Disconnected:BleLinkState.Unavailable;Status="연결을 해제했습니다.";}
-        public bool Calibrate(double now){if(InputProfile==ControllerInputProfile.Buttons||State!=BleLinkState.Connected||CalibrationPending||!Finite(now)||now<0)return false;ClearInput();Calibrated=false;CalibrationPending=true;calibrationDeadline=now+5;if(++commandId==0)commandId=1;transport.Write(PacketCodec.Encode(new ControllerPacket(2,PacketType.Calibrate,0,commandId,0,commandId,0,0,0,0,255)),operation);Status="라켓을 움직이지 말고 보정 완료를 기다려 주세요.";return true;}
+        public bool Calibrate(double now){if(IsButtonProfile||State!=BleLinkState.Connected||CalibrationPending||!Finite(now)||now<0)return false;ClearInput();Calibrated=false;CalibrationPending=true;calibrationDeadline=now+5;if(++commandId==0)commandId=1;transport.Write(PacketCodec.Encode(new ControllerPacket(2,PacketType.Calibrate,0,commandId,0,commandId,0,0,0,0,255)),operation);Status="라켓을 움직이지 말고 보정 완료를 기다려 주세요.";return true;}
         public bool ProbeLink(double now)
         {
             if(State!=BleLinkState.Connected||LinkProbePending||!Finite(now)||now<0)return false;
             if(++probeId==0)probeId=1;
-            if(InputProfile==ControllerInputProfile.Buttons)ClearInput();
+            if(IsButtonProfile)ClearInput();
             LinkProbePending=true;LinkProbePassed=false;probeStarted=now;probeDeadline=now+2;
             LinkStatus="통신 확인 메시지의 실제 응답을 기다립니다.";
             transport.Write(PacketCodec.Encode(new ControllerPacket(2,PacketType.LinkProbe,0,probeId,0,probeId,0,0,0,0,255)),operation);
@@ -107,17 +115,25 @@ namespace DigitalTennis.Controller
             {
                 if(!LinkProbePending||p.EventId!=probeId||e.ReceivedAt<probeStarted||e.ReceivedAt>probeDeadline){Rejected++;return;}
                 LinkProbePending=false;LinkProbePassed=true;LinkRoundTripMs=(e.ReceivedAt-probeStarted)*1000;
-                var profile=(ControllerInputProfile)p.Kind;if(profile!=InputProfile){ClearInput();Calibrated=false;CalibrationPending=false;}InputProfile=profile;
+                var profile=(ControllerInputProfile)p.Kind;if(profile!=InputProfile){ClearInput();physicalButtons=0;Calibrated=false;CalibrationPending=false;}InputProfile=profile;
                 LinkStatus=ButtonInputReady?"송신·응답 확인 완료 · 버튼 입력 모드 / IMU 사용 안 함":"송신·응답 확인 완료 · 센서 보정과 동작 테스트는 별도입니다.";
-                if(ButtonInputReady)Status="본딩 연결 완료 · SW1 서브 / SW2 포핸드 / SW3 백핸드 / SW4 스킬";return;
+                if(ButtonInputReady)Status=PhysicalInputMode?"본딩 연결 완료 · 버튼 번호별 눌림/해제 입력":"본딩 연결 완료 · SW1 서브 / SW2 포핸드 / SW3 백핸드 / SW4 스킬";return;
             }
-            if(p.Type==PacketType.Ack){if(CalibrationPending&&p.EventId==commandId&&e.ReceivedAt<=calibrationDeadline){if(p.Kind==1){Status="센서 보정을 진행 중입니다. 라켓을 움직이지 마세요.";return;}CalibrationPending=false;Calibrated=p.Kind==0&&(p.Flags&3)==3;Status=Calibrated?"보정 완료 · 서브·스윙·스킬을 테스트하세요.":"보정하지 못했습니다. 라켓을 정지하고 다시 보정하세요.";}return;}
-            if(p.Type==PacketType.Status){if(InputProfile==ControllerInputProfile.Motion&&(p.Flags&3)!=3){Calibrated=false;ClearInput();Status="센서 준비·보정 상태를 확인해 주세요.";}return;}
+            if(p.Type==PacketType.Ack){if(CalibrationPending&&p.EventId==commandId&&e.ReceivedAt<=calibrationDeadline){if(p.Kind==1){Status="센서 보정을 진행 중입니다. 라켓을 움직이지 마세요.";return;}CalibrationPending=false;Calibrated=p.Kind==0&&(p.Flags&3)==3;Status=Calibrated?(PhysicalInputMode?"보정 완료 · 회전 동작과 버튼을 테스트하세요.":"보정 완료 · 서브·스윙·스킬을 테스트하세요."):"보정하지 못했습니다. 라켓을 정지하고 다시 보정하세요.";}return;}
+            if(p.Type==PacketType.Status){if(!IsButtonProfile&&(p.Flags&3)!=3){Calibrated=false;ClearInput();Status="센서 준비·보정 상태를 확인해 주세요.";}return;}
             // A status flag alone cannot complete this connection's calibration command.
-            bool button=p.Type==PacketType.Button;SwingKind kind;
-            if(button)
+            bool physicalMotion=p.Type==PacketType.Motion;
+            bool physicalEdge=p.Type==PacketType.ButtonDown||p.Type==PacketType.ButtonUp;
+            bool button=p.Type==PacketType.Button;SwingKind kind=0;
+            if(physicalMotion||physicalEdge)
             {
-                if(!ButtonInputReady||p.Version!=2||p.Kind<4||p.Kind>7){Rejected++;return;}
+                bool ready=PhysicalInputMode&&LinkProbePassed&&(IsButtonProfile?ButtonInputReady:Calibrated&&!CalibrationPending);
+                if(!ready||p.Version!=3||physicalMotion&&(IsButtonProfile||!p.MotionReady)){Rejected++;return;}
+            }
+            else if(button)
+            {
+                if(InputProfile!=ControllerInputProfile.Buttons||!ButtonInputReady||p.Version!=2||p.Kind<4||p.Kind>7){Rejected++;return;}
+                // Legacy v2 compatibility only. v3 never enters this mapping.
                 kind=p.Kind==(byte)ButtonKind.Serve?SwingKind.Serve:p.Kind==(byte)ButtonKind.Forehand?SwingKind.Forehand:p.Kind==(byte)ButtonKind.Backhand?SwingKind.Backhand:SwingKind.Skill;
             }
             else
@@ -125,13 +141,22 @@ namespace DigitalTennis.Controller
                 if(InputProfile!=ControllerInputProfile.Motion||p.Type!=PacketType.Swing||!p.MotionReady||!Calibrated||CalibrationPending){Rejected++;return;}
                 kind=(SwingKind)p.Kind;
             }
-            uint eventKey=((uint)p.Type<<16)|p.EventId;if(!seen.Add(eventKey)){Rejected++;return;}order.Enqueue(eventKey);while(order.Count>64)seen.Remove(order.Dequeue());
+            uint eventKey=((uint)p.Version<<24)|((uint)p.Type<<16)|p.EventId;if(!seen.Add(eventKey)){Rejected++;return;}order.Enqueue(eventKey);while(order.Count>64)seen.Remove(order.Dequeue());
+            if(physicalEdge)
+            {
+                uint bit=1u<<(p.Kind-1);bool down=p.Type==PacketType.ButtonDown;
+                if(down==( (physicalButtons&bit)!=0)){Rejected++;return;}
+                physicalButtons=down?physicalButtons|bit:physicalButtons&~bit;
+            }
             if(++outputSequence==0)outputSequence=1;if(intents.Count>=32)intents.Dequeue();
-            intents.Enqueue(new RacketIntent(kind,outputSequence,ConnectionEpoch,e.ReceivedAt,p.Power/100f,Clamp(p.YawCdeg/4500f),Clamp(p.PitchCdeg/4500f),button));
+            if(physicalMotion)intents.Enqueue(new RacketIntent((MotionPattern)p.Kind,outputSequence,ConnectionEpoch,e.ReceivedAt,p.Power/100f,Clamp(p.YawCdeg/4500f),Clamp(p.PitchCdeg/4500f)));
+            else if(physicalEdge)intents.Enqueue(new RacketIntent(p.Kind,p.Type==PacketType.ButtonDown,outputSequence,ConnectionEpoch,e.ReceivedAt));
+            else intents.Enqueue(new RacketIntent(kind,outputSequence,ConnectionEpoch,e.ReceivedAt,p.Power/100f,Clamp(p.YawCdeg/4500f),Clamp(p.PitchCdeg/4500f),button));
         }
+
         public bool TryRead(out RacketIntent value){if(intents.Count==0){value=default;return false;}value=intents.Dequeue();return true;}
         // Drops gameplay events only. It must not cancel pairing/discovery or rewrite time.
-        public void ClearInput(){intents.Clear();lock(ingress){var keep=new Queue<BleTransportEvent>();while(ingress.Count>0){var e=ingress.Dequeue();if(e.Kind!="packet"||(PacketCodec.Decode(e.Packet,out var p)==DecodeError.None&&p.Type!=PacketType.Swing&&p.Type!=PacketType.Button))keep.Enqueue(e);}while(keep.Count>0)ingress.Enqueue(keep.Dequeue());}}
+        public void ClearInput(){intents.Clear();lock(ingress){var keep=new Queue<BleTransportEvent>();while(ingress.Count>0){var e=ingress.Dequeue();if(e.Kind!="packet"||(PacketCodec.Decode(e.Packet,out var p)==DecodeError.None&&p.Type!=PacketType.Swing&&p.Type!=PacketType.Button&&p.Type!=PacketType.Motion&&p.Type!=PacketType.ButtonDown&&p.Type!=PacketType.ButtonUp))keep.Enqueue(e);}while(keep.Count>0)ingress.Enqueue(keep.Dequeue());}}
         public void Dispose(){if(disposed)return;Reset();lock(ingress)disposed=true;transport.Received-=Receive;transport.Dispose();}
         private static string CleanName(string name)
         {

@@ -126,3 +126,7 @@ UPM 패키지 이름은 `com.digital-tennis.controller`입니다. protocol 패�
 ### 버튼 프로필과 IMU 프로필
 
 현재 본딩 연결의 LINK_PROBE에 대응한 LINK_REPLY.kind=1은 버튼 프로필입니다. 이 경우에만 v2 BUTTON4/5/6/7을 서브/포핸드/백핸드/스킬 의도로 전달합니다. UseGameShotSettings는 측정값이 없는 버튼임을 뜻하며 소비 게임의 CSV 기본 세기를 사용합니다. Calibrated는 계속 거짓이고 SWING은 거부합니다. kind=0 IMU 프로필은 기존 보정 ACK와 motion-ready를 요구합니다. 연결 해제·잘못된 nonce·만료·중복 입력은 권한을 부여하지 않습니다.
+
+## 물리 이벤트 v3
+
+새 프로필은6종 물리 회전 패턴과 번호별 버튼 눌림/해제를 그대로 제공합니다. SDK는 서브·스매시·발리·Skill을 선택하지 않으며 그 판단은 게임에 있습니다. 기존 v1/v2 입력은 호환 경로로 구분합니다. 프로필 응답과 보정 ACK·본딩·시각·중복 gate는 유지됩니다. 새 기기는 v3을 이해하는 게임/SDK를 함께 사용해야 합니다.

@@ -8,7 +8,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: digital-tennis/digital-tennis-protocol
-          ref: a5ca8b516e33b277c22f9c3ae0cb5cd60ce65498
+          ref: c8a94c4bb62d9c07f293537e087e0e664c306f4d
           path: .work/protocol
       - uses: actions/setup-dotnet@v4
         with:
