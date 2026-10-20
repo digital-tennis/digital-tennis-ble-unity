@@ -129,6 +129,7 @@ namespace DigitalTennis.Controller
             {
                 bool ready=PhysicalInputMode&&LinkProbePassed&&(IsButtonProfile?ButtonInputReady:Calibrated&&!CalibrationPending);
                 if(!ready||p.Version!=3||physicalMotion&&(IsButtonProfile||!p.MotionReady)){Rejected++;return;}
+                if(!IsButtonProfile&&(p.Flags&3)!=3){Calibrated=false;ClearInput();Rejected++;return;}
             }
             else if(button)
             {
